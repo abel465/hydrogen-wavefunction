@@ -1,0 +1,8 @@
+[package]
+name = "hydrogen_wavefunction"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+assert_approx_eq = "1.1.0"
+glam = "0.25.0"
