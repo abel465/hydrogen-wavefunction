@@ -1,18 +1,19 @@
 use core::convert::From;
 use core::ops::*;
-use glam::Vec2;
-use std::fmt;
 
 #[derive(Copy, Clone, PartialEq)]
-pub struct Complex(pub Vec2);
+pub struct Complex {
+    pub x: f64,
+    pub y: f64,
+}
 
 impl Complex {
-    pub fn new(x: f32, y: f32) -> Self {
-        Complex::from(Vec2::new(x, y))
+    pub fn new(x: f64, y: f64) -> Self {
+        Complex { x, y }
     }
-    pub const ZERO: Complex = Complex(Vec2::ZERO);
-    pub const ONE: Complex = Complex(Vec2::X);
-    pub const I: Complex = Complex(Vec2::Y);
+    pub const ZERO: Complex = Complex { x: 0.0, y: 0.0 };
+    pub const ONE: Complex = Complex { x: 1.0, y: 0.0 };
+    pub const I: Complex = Complex { x: 0.0, y: 1.0 };
 }
 
 impl Complex {
@@ -20,28 +21,28 @@ impl Complex {
         Self::new(self.x, -self.y)
     }
 
-    pub fn powf(self, exp: f32) -> Self {
+    pub fn powf(self, exp: f64) -> Self {
         let (r, theta) = self.to_polar();
         Self::from_polar(r.powf(exp), theta * exp)
     }
 
-    pub fn norm(self) -> f32 {
-        self.length()
+    pub fn norm(self) -> f64 {
+        self.norm_squared().sqrt()
     }
 
-    pub fn norm_squared(self) -> f32 {
-        self.length_squared()
+    pub fn norm_squared(self) -> f64 {
+        (self * self.conjugate()).x
     }
 
-    pub fn arg(self) -> f32 {
+    pub fn arg(self) -> f64 {
         self.y.atan2(self.x)
     }
 
-    pub fn to_polar(self) -> (f32, f32) {
+    pub fn to_polar(self) -> (f64, f64) {
         (self.norm(), self.arg())
     }
 
-    pub fn from_polar(r: f32, theta: f32) -> Self {
+    pub fn from_polar(r: f64, theta: f64) -> Self {
         Self::new(r * theta.cos(), r * theta.sin())
     }
 
@@ -54,26 +55,6 @@ impl Complex {
 
     pub fn exp(self) -> Self {
         Self::from_polar(self.x.exp(), self.y)
-    }
-}
-
-impl From<Vec2> for Complex {
-    fn from(value: Vec2) -> Self {
-        Complex(value)
-    }
-}
-
-impl Deref for Complex {
-    type Target = Vec2;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Complex {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
     }
 }
 
@@ -101,23 +82,23 @@ impl Mul for Complex {
     }
 }
 
-impl Mul<f32> for Complex {
+impl Mul<f64> for Complex {
     type Output = Self;
-    fn mul(self, other: f32) -> Self::Output {
+    fn mul(self, other: f64) -> Self::Output {
         Complex::new(self.x * other, self.y * other)
     }
 }
 
-impl Mul<Complex> for f32 {
+impl Mul<Complex> for f64 {
     type Output = Complex;
     fn mul(self, other: Complex) -> Self::Output {
         Complex::new(self * other.x, self * other.y)
     }
 }
 
-impl Div<f32> for Complex {
+impl Div<f64> for Complex {
     type Output = Self;
-    fn div(self, other: f32) -> Self::Output {
+    fn div(self, other: f64) -> Self::Output {
         Complex::new(self.x / other, self.y / other)
     }
 }
@@ -140,26 +121,26 @@ impl Neg for Complex {
     }
 }
 
-impl PartialEq<f32> for Complex {
-    fn eq(&self, other: &f32) -> bool {
+impl PartialEq<f64> for Complex {
+    fn eq(&self, other: &f64) -> bool {
         self.y == 0.0 && self.x == *other
     }
 }
 
-impl fmt::Debug for Complex {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Debug for Complex {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if self.y == 0.0 {
             write!(f, "{}", self.x)
         } else if self.y < 0.0 {
-            write!(f, "{} - i{}", self.x, -self.y)
+            write!(f, "{} - {}i", self.x, -self.y)
         } else {
-            write!(f, "{} + i{}", self.x, self.y)
+            write!(f, "{} + {}i", self.x, self.y)
         }
     }
 }
 
-impl From<f32> for Complex {
-    fn from(value: f32) -> Complex {
+impl From<f64> for Complex {
+    fn from(value: f64) -> Complex {
         Complex::new(value, 0.0)
     }
 }

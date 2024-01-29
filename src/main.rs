@@ -1,165 +1,136 @@
 mod complex;
+mod integrate;
 
 use complex::Complex;
-use core::f32::consts::PI;
+use core::f64::consts::PI;
 
-const A: f32 = 1.00054 * 5.29177210903e-11; // Bohr radius
+const A: f64 = 1.00054 * 5.29177210903e-11; // Bohr radius
 
-fn factorialu(n: u32) -> f32 {
+fn factorialu(n: u32) -> f64 {
+    if n > 12 {
+        panic!("");
+    }
     [
         1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880, 3628800, 39916800, 479001600,
-    ][n as usize] as f32
+    ][n as usize] as f64
 }
 
-fn laguerre_polynomial(n: u32, alpha: f32, x: f32) -> f32 {
-    let l0 = 1.0;
-    let l1 = 1.0 + alpha - x;
-    match n {
-        0 => l0,
-        1 => l1,
-        _ => {
-            let mut v0 = l0;
-            let mut v = l1;
-            for i in 1..n {
-                let k = i as f32;
-                (v0, v) = (
-                    v,
-                    ((2.0 * k + 1.0 + alpha - x) * v - (k + alpha) * v0) / (k + 1.0),
-                );
-            }
-
-            v
-        }
+fn laguerre_polynomial(r: u32, s: u32, x: f64) -> f64 {
+    let mut sum = 0.0;
+    for q in 0..=s {
+        sum += (-1.0_f64).powi(q as i32) * factorialu(s + r) * factorialu(s + r) * x.powi(q as i32)
+            / (factorialu(s - q) * factorialu(r + q) * factorialu(q));
     }
+    sum
 }
 
-fn binomial(n: u32, k: u32) -> f32 {
+fn binomial(n: u32, k: u32) -> f64 {
     let mut x = 1.0;
     for i in 1..=k {
-        x *= (n + 1 - i) as f32 / i as f32;
+        x *= (n + 1 - i) as f64 / i as f64;
     }
     x
 }
 
-fn general_binomial(n: f32, k: u32) -> f32 {
+fn general_binomial(n: f64, k: u32) -> f64 {
     let mut x = 1.0;
     for i in 0..k {
-        x *= n - i as f32;
+        x *= n - i as f64;
     }
     x / factorialu(k)
 }
 
-fn legendre_polynomial(m: i32, mut l: i32, x: f32) -> Complex {
-    fn legendre_polynomial_positive(m: u32, l: u32, x: f32) -> Complex {
-        // 1.0
+fn legendre_polynomial(m: i32, mut l: i32, x: f64) -> Complex {
+    fn legendre_polynomial_positive(m: u32, l: u32, x: f64) -> Complex {
         let mut sm = 0.0;
         for k in m..=l {
             sm += factorialu(k) / factorialu(k - m)
                 * x.powi((k - m) as i32)
                 * binomial(l, k)
-                * general_binomial(((l + k) as f32 - 1.0) / 2.0, l);
+                * general_binomial(((l + k) as f64 - 1.0) / 2.0, l);
         }
-        // let sm = 1.0;
-        // let bb = if x == 1.0 {
-        //     // Complex::ONE
-        //     Complex::new(1.0 - x * x, 0.0).powf(m as f32 / 2.0)
-        // } else {
-        //     Complex::new(1.0 - x * x, 0.0).powf(m as f32 / 2.0)
-        // };
-        let bb = Complex::new(1.0 - x * x, 0.0).powf(m as f32 / 2.0);
-        // println!("sm: {}", sm);
-        // println!("x: {}", x);
-        // println!("bb: {:?}", bb);
-        // println!("m: {}", m);
-        // println!("{}", m as f32 / 2.0);
-        (-1.0_f32).powi(m as i32) * 2.0_f32.powi(l as i32) * bb * sm
-        // (-1.0_f32).powi(m as i32) * 2.0_f32.powi(l as i32) * (1.0 - x * x).powf(m as f32 / 2.0) * sm
+        let bb = Complex::new(1.0 - x * x, 0.0).powf(m as f64 / 2.0);
+        (-1.0_f64).powi(m as i32) * 2.0_f64.powi(l as i32) * bb * sm
     }
     if l < 0 {
         l = -l - 1;
     }
     if m < 0 {
-        (-1.0_f32).powi(-m) * factorialu((l + m) as u32) / factorialu((l - m) as u32)
+        (-1.0_f64).powi(-m) * factorialu((l + m) as u32) / factorialu((l - m) as u32)
             * legendre_polynomial_positive((-m) as u32, l as u32, x)
     } else {
         legendre_polynomial_positive(m as u32, l as u32, x)
     }
 }
 
-fn spherical_harmonic(m: i32, l: i32, theta: f32, phi: f32) -> Complex {
-    let normalization_constant = (((2 * l + 1) as f32 * factorialu((l - m) as u32))
+fn spherical_harmonic(m: i32, l: i32, theta: f64, phi: f64) -> Complex {
+    let normalization_constant = (((2 * l + 1) as f64 * factorialu((l - m) as u32))
         / (4.0 * PI * factorialu((l + m) as u32)))
     .sqrt();
-    let angular = (Complex::I * phi * m as f32).exp();
+    let angular = (Complex::I * phi * m as f64).exp();
     let lp = legendre_polynomial(m, l, theta.cos());
-    // println!("(m,l,theta,phi): ({}, {}, {}, {})", m, l, theta, phi);
-    // println!("nc:  {}", normalization_constant);
-    // println!("ang: {:?}", angular);
-    // println!("lp : {:?}", lp);
     normalization_constant * lp * angular
 }
 
-fn hydrogen_wavefunction(n: u32, l: u32, m: i32, theta: f32, phi: f32, r: f32) -> Complex {
-    let p = (2.0 * r) / (n as f32 * A);
-    let normalization_constant = ((2.0 / (n as f32 * A)) * factorialu(n - l - 1)
-        / (2.0 * n as f32 * factorialu(n + l)).powi(3))
+fn radial_wavefunction(n: u32, l: u32, r: f64) -> f64 {
+    let p = (2.0 * r) / (n as f64 * A);
+    let normalization_constant = ((2.0 / (n as f64 * A)).powi(3) * factorialu(n - l - 1)
+        / (2.0 * n as f64 * factorialu(n + l).powi(3)))
     .sqrt();
-    let asymptotic_forms = (-r / (n as f32 * A)).exp() * p.powi(l as i32);
-    let lp = laguerre_polynomial((n - l) as u32 - 1, 2.0 * l as f32 + 1.0, p);
-    let radial = asymptotic_forms * lp;
+    let asymptotic_forms = (-r / (n as f64 * A)).exp() * p.powi(l as i32);
+    let lp = laguerre_polynomial(2 * l + 1, n - l - 1, p);
+    normalization_constant * asymptotic_forms * lp
+}
+
+fn hydrogen_wavefunction(n: u32, l: u32, m: i32, theta: f64, phi: f64, r: f64) -> Complex {
+    let radial = radial_wavefunction(n, l, r);
     let angular = spherical_harmonic(m, l as i32, theta, phi);
-    // println!("(n,l)     ({},{})", n,l);
-    // println!("p     {:?}", p);
-    // println!("r     {:?}", r);
-    // println!("p     {:?}", p);
-    println!("nc     {:?}", normalization_constant);
-    // println!("1       {:?}", (-r * p / 2.0).exp());
-    // println!("2       {:?}", (r * p).powi(l as i32));
-    // println!("asmfrms {:?}", asymptotic_forms);
-    // println!("lp      {:?}", lp);
-    // println!("radial  {:?}", radial);
-    // println!("angular {:?}", angular);
-    normalization_constant * radial * angular
+    radial * angular
 }
 
 fn main() {
-    for r in [
-        0.0,
-        A / 99.9,
-        A / 3.0,
-        A / 2.0,
-        A,
-        2.0 * A,
-        4.0 * A,
-        20.0 * A,
-        40.0 * A,
-        999.9 * A,
-    ] {
-        let z = hydrogen_wavefunction(1, 0, 0, 0.0, PI / 2.0, r);
-        // let z0 = hydrogen_wavefunction(5, 1, 0, 0.0, PI, r);
-        println!("    {:+.2e}:   {},{}", r, z.x, z.y);
-        // println!("     {:+.2e}:   {},{}", r, z0.x, z0.y);
-        // println!("{}", one_s(r));
-    }
+    println!("{:?}", hydrogen_wavefunction(1, 0, 0, 0.0, 0.0, A));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use assert_approx_eq::assert_approx_eq;
+    use integrate::*;
 
-    macro_rules! assert_delta {
-        ($x:expr, $y:expr, $d:expr) => {
-            if !($x - $y < $d || $y - $x < $d) {
-                panic!();
+    macro_rules! assert_similar {
+        ($x:expr, $y:expr) => {
+            let delta = ($x - $y).abs();
+            let e = ($x * f64::EPSILON).abs().max(($y * f64::EPSILON).abs());
+            if delta > e {
+                panic!(
+                    "assertion `left ~= right` failed
+  left: {}
+ right: {}",
+                    $x, $y
+                )
             }
         };
     }
 
     #[test]
-    fn test_hydrogen_wavefunction() {
+    fn test_radial_wavefunction_integral() {
+        for n in 1..6 {
+            for l in 0..n {
+                let f = |r: f64| {
+                    let v = radial_wavefunction(n, l, r);
+                    v * v * r * r
+                };
+                let total_probability = integrate1(&f, 0.0, A * 100.0, 10000);
+                assert_approx_eq!(total_probability, 1.0, 1e-5);
+            }
+        }
+    }
+
+    #[test]
+    fn test_radial_wavefunction() {
         for r in [
-            // 0.0,
+            0.0,
             A / 99.9,
             A / 3.0,
             A / 2.0,
@@ -169,10 +140,35 @@ mod tests {
             40.0 * A,
             999.9 * A,
         ] {
-            // println!("r: {}", r);
-            // assert_delta!(one_s(r) * one_s(r), one_s_p(r), f32::EPSILON);
-            // assert_eq!(hydrogen_wavefunction(1, 0, 0, 0.0, PI / 2.0, r), one_s(r));
-            // 0.0000001
+            assert_eq!(
+                radial_wavefunction(1, 0, r),
+                2.0 * A.powf(-3.0 / 2.0) * (-r / A).exp()
+            );
+            assert_similar!(
+                radial_wavefunction(2, 0, r),
+                1.0 / 2.0_f64.sqrt()
+                    * A.powf(-3.0 / 2.0)
+                    * (1.0 - r / (2.0 * A))
+                    * (-r / (2.0 * A)).exp()
+            );
+            assert_similar!(
+                radial_wavefunction(2, 1, r),
+                1.0 / 24.0_f64.sqrt() * A.powf(-3.0 / 2.0) * (r / A) * (-r / (2.0 * A)).exp()
+            );
+        }
+    }
+
+    #[test]
+    fn test_spherical_harmonic_integral() {
+        for l in 1..4 {
+            for m in -l..=l {
+                let f = |theta: f64, phi: f64| {
+                    let v = spherical_harmonic(m, l, theta, phi);
+                    v.norm_squared() * theta.sin()
+                };
+                let total_probability = integrate2(&f, [0.0, 0.0], [PI, 2.0 * PI], 1000);
+                assert_approx_eq!(total_probability, 1.0, 0.002);
+            }
         }
     }
 
@@ -222,14 +218,14 @@ mod tests {
                     let truth = Complex::from(
                         0.25 * (5.0 / PI).sqrt() * (3.0 * theta.cos() * theta.cos() - 1.0),
                     );
-                    assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                    assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                    assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                    assert_approx_eq!(result.y, truth.y, f64::EPSILON);
                 }
                 {
                     let result = spherical_harmonic(1, 1, theta, phi);
                     let truth = -0.5 * (3.0 / (2.0 * PI)).sqrt() * theta.sin() * (i * phi).exp();
-                    assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                    assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                    assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                    assert_approx_eq!(result.y, truth.y, f64::EPSILON);
                 }
                 {
                     let result = spherical_harmonic(1, 2, theta, phi);
@@ -238,8 +234,8 @@ mod tests {
                         * (theta).sin()
                         * (theta).cos()
                         * (i * phi).exp();
-                    assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                    assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                    assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                    assert_approx_eq!(result.y, truth.y, f64::EPSILON);
                 }
                 {
                     let result = spherical_harmonic(2, 2, theta, phi);
@@ -248,14 +244,14 @@ mod tests {
                         * (theta).sin()
                         * (theta).sin()
                         * (2.0 * i * phi).exp();
-                    assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                    assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                    assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                    assert_approx_eq!(result.y, truth.y, f64::EPSILON);
                 }
                 {
                     let result = spherical_harmonic(-1, 1, theta, phi);
                     let truth = 0.5 * (3.0 / (2.0 * PI)).sqrt() * theta.sin() * (-i * phi).exp();
-                    assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                    assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                    assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                    assert_approx_eq!(result.y, truth.y, f64::EPSILON);
                 }
                 {
                     let result = spherical_harmonic(-1, 2, theta, phi);
@@ -264,8 +260,8 @@ mod tests {
                         * theta.sin()
                         * theta.cos()
                         * (-i * phi).exp();
-                    assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                    assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                    assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                    assert_approx_eq!(result.y, truth.y, f64::EPSILON);
                 }
                 {
                     let result = spherical_harmonic(-2, 2, theta, phi);
@@ -274,8 +270,8 @@ mod tests {
                         * theta.sin()
                         * theta.sin()
                         * (-2.0 * i * phi).exp();
-                    assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                    assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                    assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                    assert_approx_eq!(result.y, truth.y, f64::EPSILON);
                 }
             }
         }
@@ -287,78 +283,78 @@ mod tests {
             {
                 let result = legendre_polynomial(0, 0, x);
                 let truth = Complex::ONE;
-                assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                assert_approx_eq!(result.y, truth.y, f64::EPSILON);
             }
             {
                 let result = legendre_polynomial(0, 1, x);
                 let truth = x * Complex::ONE;
-                assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                assert_approx_eq!(result.y, truth.y, f64::EPSILON);
             }
             {
                 let result = legendre_polynomial(1, 1, x);
                 let truth = -Complex::new(1.0 - x * x, 0.0).sqrt();
-                assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                assert_approx_eq!(result.y, truth.y, f64::EPSILON);
             }
             {
                 let result = legendre_polynomial(-1, 1, x);
                 let truth = -0.5 * legendre_polynomial(1, 1, x);
-                assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                assert_approx_eq!(result.y, truth.y, f64::EPSILON);
             }
             {
                 let result = legendre_polynomial(-1, 2, x);
                 let truth = -1.0 / 6.0 * legendre_polynomial(1, 2, x);
-                assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                assert_approx_eq!(result.y, truth.y, f64::EPSILON);
             }
             {
                 let result = legendre_polynomial(-2, 2, x);
                 let truth = 1.0 / 24.0 * legendre_polynomial(2, 2, x);
-                assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                assert_approx_eq!(result.y, truth.y, f64::EPSILON);
             }
             {
                 let result = legendre_polynomial(0, 2, x);
                 let truth = Complex::ONE * 0.5 * (3.0 * x * x - 1.0);
-                assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                assert_approx_eq!(result.y, truth.y, f64::EPSILON);
             }
             {
                 let result = legendre_polynomial(1, 2, x);
                 let truth = -3.0 * x * Complex::from(1.0 - x * x).sqrt();
-                assert_approx_eq!(result.x, truth.x, f32::EPSILON * 2.0);
-                assert_approx_eq!(result.y, truth.y, f32::EPSILON);
+                assert_approx_eq!(result.x, truth.x, f64::EPSILON * 2.0);
+                assert_approx_eq!(result.y, truth.y, f64::EPSILON);
             }
             {
                 let result = legendre_polynomial(2, 2, x);
                 let truth = 3.0 * Complex::from(1.0 - x * x);
-                assert_approx_eq!(result.x, truth.x, f32::EPSILON);
-                assert_approx_eq!(result.y, truth.y, f32::EPSILON * 3.0);
+                assert_approx_eq!(result.x, truth.x, f64::EPSILON);
+                assert_approx_eq!(result.y, truth.y, f64::EPSILON * 3.0);
             }
         }
     }
 
     #[test]
     fn test_laguerre_polynomial() {
-        for a in [-1.4, -1.0, 0.0, 1.0, 1.4] {
-            for x in [-1.4, -1.0, 0.0, 1.0, 1.4] {
-                assert_eq!(laguerre_polynomial(0, a, x), 1.0);
-                assert_eq!(laguerre_polynomial(1, a, x), a + 1.0 - x);
-                assert_approx_eq!(
-                    laguerre_polynomial(2, a, x),
-                    x * x / 2.0 - x * (a + 2.0) + (a + 1.0) * (a + 2.0) / 2.0,
-                    f32::EPSILON * 5.0
-                );
-                assert_approx_eq!(
-                    laguerre_polynomial(3, a, x),
-                    -x * x * x / 6.0 + (a + 3.0) * x * x / 2.0 - (a + 2.0) * (a + 3.0) * x / 2.0
-                        + (a + 1.0) * (a + 2.0) * (a + 3.0) / 6.0,
-                    f32::EPSILON * 17.0
-                );
-            }
+        for x in [-1.4, -1.0, 0.0, 1.0, 1.4] {
+            assert_eq!(laguerre_polynomial(0, 0, x), 1.0);
+            assert_eq!(laguerre_polynomial(0, 1, x), 1.0 - x);
+            assert_eq!(laguerre_polynomial(1, 0, x), 1.0);
+            assert_eq!(laguerre_polynomial(1, 1, x), -2.0 * x + 4.0);
+            assert_approx_eq!(
+                laguerre_polynomial(0, 2, x),
+                x * x - 4.0 * x + 2.0,
+                f64::EPSILON * 2.0
+            );
+            assert_approx_eq!(
+                laguerre_polynomial(1, 2, x),
+                3.0 * x * x - 18.0 * x + 18.0,
+                f64::EPSILON * 5.0
+            );
+            assert_approx_eq!(laguerre_polynomial(2, 1, x), -6.0 * x + 18.0);
         }
     }
 
@@ -388,7 +384,7 @@ mod tests {
             (2, 2),
             (4, 2),
         ] {
-            assert_eq!(general_binomial(n as f32, k), binomial(n, k));
+            assert_eq!(general_binomial(n as f64, k), binomial(n, k));
         }
     }
 
