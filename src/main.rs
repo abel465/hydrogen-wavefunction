@@ -1,5 +1,5 @@
 mod complex;
-mod integrate;
+pub mod integrate;
 
 use complex::Complex;
 use core::f64::consts::PI;
@@ -111,6 +111,26 @@ mod tests {
                 )
             }
         };
+    }
+
+    #[test]
+    fn test_hydrogen_wavefunction_integral() {
+        for n in 0..3 {
+            for l in 0..n {
+                for m in 0..=l {
+                    let f = |x: f64, y: f64, z: f64| {
+                        let r = (x * x + y * y + z * z).sqrt();
+                        let theta = (z / r).acos();
+                        let phi = y.signum() * (x / (x * x + y * y).sqrt()).acos();
+                        let v = hydrogen_wavefunction(n, l, m as i32, theta, phi, r);
+                        v.norm_squared()
+                    };
+                    let d = A * 50.0;
+                    let total_probability = integrate3(&f, [-d, -d, -d], [d, d, d], 140);
+                    assert_approx_eq!(total_probability, 1.0, 0.05);
+                }
+            }
+        }
     }
 
     #[test]
